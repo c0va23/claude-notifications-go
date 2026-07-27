@@ -92,23 +92,30 @@ Clicking a notification switches to the correct session/pane/tab, on top of rais
 | Multiplexer | macOS | Linux |
 |-------------|-------|-------|
 | tmux | ✅ | — |
-| zellij | ✅ (active tab) | ✅ (exact pane) |
+| zellij | ✅ | ✅ |
 | WezTerm | ✅ | ✅ |
 | kitty | ✅ | — |
 
 Where a multiplexer is unsupported the window is still raised; only the pane/tab switch is skipped.
 
-On Linux, zellij is targeted by pane rather than by tab name: the hook records `$ZELLIJ_SESSION_NAME`
-and `$ZELLIJ_PANE_ID`, and the click runs `zellij -s <session> action focus-pane-id <pane>`. That is
-exact where a tab name is not — tab names need not be unique, and the tab that is *focused* when the
-notification fires is whichever one you switched to, not the one Claude is running in.
+Where the session exports `$ZELLIJ_PANE_ID`, zellij is targeted by pane rather than by tab name,
+identically on both platforms: the hook records that pane along with `$ZELLIJ_SESSION_NAME`, and the
+click runs `zellij -s <session> action focus-pane-id <pane>`. That is exact where a tab name is not —
+tab names need not be unique, `zellij action rename-tab` can change one after the notification is
+sent, a tab holds many panes, and the tab that is *focused* when the notification fires is whichever
+one you switched to, not the one Claude is running in. Without a pane ID the click takes the tab path
+described below.
+
+The two platforms differ only in how the click is delivered: Linux hands the strategy to the
+background daemon over IPC, while macOS bakes the matching command into terminal-notifier's
+`-execute`. The strategy itself is chosen by the same code on both.
 
 Pane targeting is used only where it can actually work: the session has to export `$ZELLIJ_PANE_ID`
 for the action to name, and the installed zellij has to accept `focus-pane-id`. Either one missing
 falls back to `go-to-tab-name`, so no zellij version loses behaviour it previously had. Both are
 settled when the notification is sent, and the second is settled by asking the installed zellij
 whether it accepts the subcommand — not by comparing version numbers, though for reference the
-subcommand arrived in 0.44.1. macOS always uses `go-to-tab-name`.
+subcommand arrived in 0.44.1.
 
 Override the choice with `zellijFocus` in `~/.claude/claude-notifications-go/config.json`:
 
@@ -129,12 +136,10 @@ Override the choice with `zellijFocus` in `~/.claude/claude-notifications-go/con
 | `tab` | Always use the legacy tab-name path |
 | `off` | Raise the window only, never touch zellij |
 
-The setting is read on Linux; the macOS click path always uses the tab name.
+The setting applies to macOS and Linux alike.
 
-The `tab` path is approximate by nature, which is why it is only the fallback. Tab names are not
-unique, `zellij action rename-tab` can change one after the notification is sent, and a tab holds
-many panes — so it lands on whichever pane that tab last had focused, not necessarily the one Claude
-is running in.
+The `tab` path is approximate in all the ways listed above, which is why it is only the fallback;
+its one advantage is that every zellij version supports it.
 
 ### iTerm2 + tmux Control Mode (-CC)
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/777genius/claude-notifications/internal/config"
+	"github.com/777genius/claude-notifications/internal/daemon"
 	"github.com/777genius/claude-notifications/internal/logging"
 )
 
@@ -25,7 +26,7 @@ var multiplexerHandlers = []multiplexerHandler{
 
 // detectMultiplexerArgs tries each registered multiplexer.
 // Returns (args, name) if detected and target obtained,
-// (nil, name) if detected but target failed,
+// (nil, name) if detected but the target failed or the handler declined,
 // (nil, "") if no multiplexer detected.
 func detectMultiplexerArgs(title, message, bundleID string, cfg *config.Config) ([]string, string) {
 	for _, mux := range multiplexerHandlers {
@@ -80,13 +81,41 @@ func buildTmuxClickArgs(title, message, bundleID string, _ *config.Config) ([]st
 	return buildTmuxNotifierArgs(title, message, target, bundleID), nil
 }
 
-// buildZellijClickArgs captures zellij tab target and builds notifier args.
-func buildZellijClickArgs(title, message, bundleID string, _ *config.Config) ([]string, error) {
-	tabName, sessionName, err := GetZellijTabTarget()
-	if err != nil {
-		return nil, err
+// buildZellijClickArgs picks the zellij focus strategy and builds notifier args.
+// The pane path is exact; the tab path is the fallback for zellij below 0.44.1,
+// which has no focus-pane-id.
+func buildZellijClickArgs(title, message, bundleID string, cfg *config.Config) ([]string, error) {
+	switch mode := resolveZellijFocusMode(zellijFocusSetting(cfg)); mode {
+	case daemon.ZellijFocusModeOff:
+		// Declining is a configured outcome, not a failure, so it returns no
+		// error; the caller falls back to plain -activate and the terminal is
+		// still raised.
+		logging.Debug("zellij focus disabled via zellijFocus=off, raising the window only")
+		return nil, nil
+
+	case daemon.ZellijFocusModePane:
+		paneID, sessionName, err := GetZellijPaneTarget()
+		if err != nil {
+			return nil, err
+		}
+		return buildZellijPaneNotifierArgs(title, message, paneID, sessionName, bundleID), nil
+
+	default:
+		tabName, sessionName, err := GetZellijTabTarget()
+		if err != nil {
+			return nil, err
+		}
+		return buildZellijNotifierArgs(title, message, tabName, sessionName, bundleID), nil
 	}
-	return buildZellijNotifierArgs(title, message, tabName, sessionName, bundleID), nil
+}
+
+// zellijFocusSetting reads the configured strategy, tolerating a nil config so
+// callers without one still get the auto behaviour.
+func zellijFocusSetting(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Notifications.Desktop.ZellijFocus
 }
 
 // buildWezTermClickArgs captures WezTerm pane target and builds notifier args.

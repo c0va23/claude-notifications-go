@@ -143,3 +143,28 @@ func shellFields(command string) ([]string, error) {
 	}
 	return strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00"), nil
 }
+
+// Both strategies must name the same session explicitly and invoke the action
+// the platform's zellij actually supports.
+func TestBuildZellijPaneNotifierArgs_ExecutesFocusPaneID(t *testing.T) {
+	args := buildZellijPaneNotifierArgs("Title", "Body", "2", "cubic-weasel", "org.alacritty")
+
+	execute := ""
+	for index, arg := range args {
+		if arg == "-execute" && index+1 < len(args) {
+			execute = args[index+1]
+		}
+	}
+
+	if execute == "" {
+		t.Fatalf("buildZellijPaneNotifierArgs() produced no -execute argument: %v", args)
+	}
+	for _, want := range []string{"focus-pane-id", "'2'", "-s 'cubic-weasel'"} {
+		if !strings.Contains(execute, want) {
+			t.Errorf("-execute = %q, want it to contain %q", execute, want)
+		}
+	}
+	if strings.Contains(execute, "go-to-tab-name") {
+		t.Errorf("-execute = %q, should not fall back to the tab action", execute)
+	}
+}

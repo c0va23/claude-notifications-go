@@ -14,7 +14,7 @@ import (
 
 // IsZellij returns true if the current process is running inside a zellij session.
 func IsZellij() bool {
-	return os.Getenv("ZELLIJ") != ""
+	return daemon.InZellij()
 }
 
 // getZellijPath returns the absolute path to the zellij binary.
@@ -207,4 +207,19 @@ func autoZellijFocusMode() string {
 		return daemon.ZellijFocusModePane
 	}
 	return daemon.ZellijFocusModeTab
+}
+
+// GetZellijPaneTarget returns the pane and session that produced the notification.
+func GetZellijPaneTarget() (paneID, sessionName string, err error) {
+	sessionName, paneID = daemon.GetZellijFocusHints()
+	if sessionName == "" || paneID == "" {
+		return "", "", fmt.Errorf("ZELLIJ_SESSION_NAME or ZELLIJ_PANE_ID not set")
+	}
+	return paneID, sessionName, nil
+}
+
+// buildZellijPaneNotifierArgs builds terminal-notifier arguments that focus the
+// exact pane on click, rather than the tab that happens to contain it.
+func buildZellijPaneNotifierArgs(title, message, paneID, sessionName, bundleID string) []string {
+	return buildZellijActionNotifierArgs(title, message, sessionName, bundleID, "focus-pane-id", paneID)
 }

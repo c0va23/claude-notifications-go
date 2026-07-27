@@ -10,11 +10,17 @@ func TestDetectMultiplexerArgs_NoMux(t *testing.T) {
 	// Save and clear all multiplexer env vars
 	oldTmux := os.Getenv("TMUX")
 	oldZellij := os.Getenv("ZELLIJ")
+	// Clearing $ZELLIJ alone leaves a real zellij session detectable, because the
+	// pane variables identify it on their own.
+	oldZellijSession := os.Getenv("ZELLIJ_SESSION_NAME")
+	oldZellijPane := os.Getenv("ZELLIJ_PANE_ID")
 	oldWezTermPane := os.Getenv("WEZTERM_PANE")
 	oldKittyWindowID := os.Getenv("KITTY_WINDOW_ID")
 	oldKittyListenOn := os.Getenv("KITTY_LISTEN_ON")
 	os.Unsetenv("TMUX")
 	os.Unsetenv("ZELLIJ")
+	os.Unsetenv("ZELLIJ_SESSION_NAME")
+	os.Unsetenv("ZELLIJ_PANE_ID")
 	os.Unsetenv("WEZTERM_PANE")
 	os.Unsetenv("KITTY_WINDOW_ID")
 	os.Unsetenv("KITTY_LISTEN_ON")
@@ -24,6 +30,12 @@ func TestDetectMultiplexerArgs_NoMux(t *testing.T) {
 		}
 		if oldZellij != "" {
 			os.Setenv("ZELLIJ", oldZellij)
+		}
+		if oldZellijSession != "" {
+			os.Setenv("ZELLIJ_SESSION_NAME", oldZellijSession)
+		}
+		if oldZellijPane != "" {
+			os.Setenv("ZELLIJ_PANE_ID", oldZellijPane)
 		}
 		if oldWezTermPane != "" {
 			os.Setenv("WEZTERM_PANE", oldWezTermPane)

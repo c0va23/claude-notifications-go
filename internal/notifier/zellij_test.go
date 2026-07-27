@@ -1,29 +1,29 @@
 package notifier
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
 
 func TestIsZellij(t *testing.T) {
-	oldVal := os.Getenv("ZELLIJ")
-	t.Cleanup(func() {
-		if oldVal != "" {
-			os.Setenv("ZELLIJ", oldVal)
-		} else {
-			os.Unsetenv("ZELLIJ")
-		}
-	})
-
-	os.Setenv("ZELLIJ", "0")
+	// The pane variables are enough on their own, so a case meaning "not in
+	// zellij" has to clear all three rather than only the marker.
+	t.Setenv("ZELLIJ", "0")
+	t.Setenv("ZELLIJ_SESSION_NAME", "")
+	t.Setenv("ZELLIJ_PANE_ID", "")
 	if !IsZellij() {
 		t.Error("IsZellij() should return true when ZELLIJ env is set")
 	}
 
-	os.Unsetenv("ZELLIJ")
+	t.Setenv("ZELLIJ", "")
 	if IsZellij() {
-		t.Error("IsZellij() should return false when ZELLIJ env is not set")
+		t.Error("IsZellij() should return false when no zellij variable is set")
+	}
+
+	t.Setenv("ZELLIJ_SESSION_NAME", "cubic-weasel")
+	t.Setenv("ZELLIJ_PANE_ID", "2")
+	if !IsZellij() {
+		t.Error("IsZellij() should return true when the pane variables identify a session")
 	}
 }
 
