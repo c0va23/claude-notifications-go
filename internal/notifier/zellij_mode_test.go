@@ -1,6 +1,9 @@
 package notifier
 
 import (
+	"os/exec"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/777genius/claude-notifications/internal/daemon"
@@ -82,4 +85,61 @@ func TestResolveZellijFocusMode_AutoFallsBackToTab(t *testing.T) {
 			t.Errorf("resolveZellijFocusMode(auto) = %q, want %q", got, daemon.ZellijFocusModeTab)
 		}
 	})
+}
+
+// A tab name is free-form — `zellij action rename-tab "it's here"` is accepted —
+// and -execute is handed to a shell, so a quote in one must not end up steering
+// the command.
+func TestBuildZellijActionNotifierArgs_QuotesTheTarget(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the split is done by /bin/sh, and -execute is macOS-only anyway")
+	}
+
+	args := buildZellijActionNotifierArgs(
+		"Title", "Body",
+		"o'brien",
+		"org.alacritty",
+		"go-to-tab-name",
+		"it's here'; echo escaped-the-quotes; echo '",
+	)
+
+	execute := ""
+	for index, arg := range args {
+		if arg == "-execute" && index+1 < len(args) {
+			execute = args[index+1]
+		}
+	}
+	if execute == "" {
+		t.Fatalf("buildZellijActionNotifierArgs() produced no -execute argument: %v", args)
+	}
+
+	// Splitting the way a shell does is the only check that means anything here:
+	// the target has to survive as exactly one word, whatever it contains. The
+	// payload only echoes if the quoting ever breaks, so a regression reports
+	// itself instead of running something.
+	fields, err := shellFields(execute)
+	if err != nil {
+		t.Fatalf("failed to split %q the way a shell would: %v", execute, err)
+	}
+
+	want := []string{getZellijPath(), "-s", "o'brien", "action", "go-to-tab-name", "it's here'; echo escaped-the-quotes; echo '"}
+	if len(fields) != len(want) {
+		t.Fatalf("-execute split into %d words %q, want %d %q", len(fields), fields, len(want), want)
+	}
+	for i := range want {
+		if fields[i] != want[i] {
+			t.Errorf("word %d = %q, want %q", i, fields[i], want[i])
+		}
+	}
+}
+
+// shellFields asks /bin/sh itself how the command would be split, rather than
+// reimplementing its quoting rules in the test that checks them.
+func shellFields(command string) ([]string, error) {
+	// printf %s\0 keeps words that contain spaces or newlines intact.
+	out, err := exec.Command("/bin/sh", "-c", "printf '%s\\0' "+command).Output()
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00"), nil
 }

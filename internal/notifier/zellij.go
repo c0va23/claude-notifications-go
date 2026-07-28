@@ -150,12 +150,16 @@ func buildZellijNotifierArgs(title, message, tabName, sessionName, bundleID stri
 
 // buildZellijActionNotifierArgs assembles the terminal-notifier invocation whose
 // -execute runs a single `zellij action` against an explicitly named session.
+//
+// The session name and target go through shellQuote because terminal-notifier
+// hands -execute to a shell and either can legitimately contain a quote:
+// `zellij action rename-tab "it's here"` is accepted.
 func buildZellijActionNotifierArgs(title, message, sessionName, bundleID, action, target string) []string {
 	zellijPath := getZellijPath()
 
 	executeCmd := fmt.Sprintf(
-		"'%s' -s '%s' action %s '%s'",
-		zellijPath, sessionName, action, target,
+		"%s -s %s action %s %s",
+		shellQuote(zellijPath), shellQuote(sessionName), action, shellQuote(target),
 	)
 
 	args := []string{
